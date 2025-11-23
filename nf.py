@@ -7,10 +7,8 @@ import requests
 import threading
 from urllib.parse import unquote
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from telebot import TeleBot, types
 
-now = datetime.now(timezone.utc)
 
 import telebot  # pyTelegramBotAPI
 
@@ -496,13 +494,13 @@ def process_file_job(job: FileJob):
             # Save valid hits only (detailed)
             if job.valid > 0:
                 timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-                out_name = os.path.join(RESULTS_DIR, f"{job.valid}x_netflix_hits_{timestamp}.txt")
+                out_name = os.path.join(RESULTS_DIR, f"{job.valid}x_netflix_cookies.txt")
                 with open(out_name, 'w', encoding='utf-8') as fo:
                     for cookie_line, res in job.valid_lines:
                         # write line + formatted details
                         fo.write(f"{cookie_line} ; {checker.format_result_line(res)}\n")
                 with open(out_name, 'rb') as fsend:
-                    bot.send_document(job.chat_id, fsend, caption=f"🎯 {job.valid} Valid Netflix hits (file)")
+                    bot.send_document(job.chat_id, fsend, caption=f"🎯 {job.valid} Valid Netflix Cookie hits (file)")
 
             # also save full result lines file
             all_name = os.path.join(RESULTS_DIR, f"full_results_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt")
