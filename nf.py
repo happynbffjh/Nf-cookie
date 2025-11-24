@@ -366,7 +366,7 @@ class NetflixChecker:
 
         if status == 'success':
             return (
-                f"✅ Netflix — LIVE\n"
+                f"✅ Netflix — HIT\n"
                 f"Email: {email}\n"
                 f"Plan: {plan}\n"
                 f"Country: {country}\n"
@@ -611,7 +611,7 @@ def process_file_job(job: FileJob):
 
             with open(out_name, 'w', encoding='utf-8') as fo:
                 for cookie_line, res in job.valid_lines:
-                    fo.write(f"{cookie_line}\n\n{checker.format_result_line(res)}\n\n")
+                    fo.write(f"{checker.format_result_line(res)}\nCookies: {cookie_line}\n\n")
 
             with open(out_name, 'rb') as fsend:
                 bot.send_document(job.chat_id, fsend)
@@ -747,30 +747,41 @@ def cmd_extract(message):
     or
     Reply to an uploaded .txt file with /extract
     """
+
     args = message.text.partition(' ')[2].strip()
 
-    # 1️⃣ If user provided text
+    def get_filtered_netflix_ids(text):
+        """
+        Extract only NetflixId (ignore SecureNetflixId), handling optional spaces
+        around '=' and multiple IDs per line.
+        """
+        filtered = []
+        for line in text.splitlines():
+            # Negative lookbehind (?<!Secure) ensures SecureNetflixId is ignored
+            # \s* around = handles spaces or no spaces
+            matches = re.findall(r'(?<!Secure)NetflixId\s*=\s*([^\|;\n]+)', line)
+            for m in matches:
+                filtered.append("NetflixId=" + m.strip())
+        return filtered
+
+    # 1️⃣ If user provided text directly
     if args:
-        extracted = extract_cookie_strings_from_text(args)
-        # Filter only NetflixId
-        filtered_lines = []
-        for line in extracted:
-            match = re.search(r'(NetflixId=[^\s|]+)', line)
-            if match:
-                filtered_lines.append(match.group(1))
+        filtered_lines = get_filtered_netflix_ids(args)
 
         if not filtered_lines:
             bot.reply_to(message, "❌ No NetflixId found in the provided text.")
             return
 
         preview = "\n".join(filtered_lines[:20])
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        out_name = os.path.join(RESULTS_DIR, f"Extracted_Cookies.txt")
+        out_name = os.path.join(RESULTS_DIR, "Extracted_Cookies.txt")
         with open(out_name, 'w', encoding='utf-8') as fo:
             for line in filtered_lines:
                 fo.write(line + "\n")
 
-        bot.reply_to(message, f"✅ Extracted {len(filtered_lines)} NetflixId(s). Preview (first {min(20,len(filtered_lines))}):\n\n{preview}")
+        bot.reply_to(
+            message,
+            f"✅ Extracted {len(filtered_lines)} NetflixId(s). Preview (first {min(20,len(filtered_lines))}):\n\n{preview}"
+        )
         with open(out_name, 'rb') as fsend:
             bot.send_document(message.chat.id, fsend)
         return
@@ -788,20 +799,13 @@ def cmd_extract(message):
             bot.reply_to(message, f"❌ Failed to read file: {e}")
             return
 
-        extracted = extract_cookie_strings_from_text(raw)
-        # Filter only NetflixId
-        filtered_lines = []
-        for line in extracted:
-            match = re.search(r'(NetflixId=[^\s|]+)', line)
-            if match:
-                filtered_lines.append(match.group(1))
+        filtered_lines = get_filtered_netflix_ids(raw)
 
         if not filtered_lines:
             bot.reply_to(message, "❌ No NetflixId found in that file.")
             return
 
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        out_name = os.path.join(RESULTS_DIR, f"Extracted_Cookies.txt")
+        out_name = os.path.join(RESULTS_DIR, "Extracted_Cookies.txt")
         with open(out_name, 'w', encoding='utf-8') as fo:
             for line in filtered_lines:
                 fo.write(line + "\n")
@@ -813,20 +817,9 @@ def cmd_extract(message):
 
     # 3️⃣ Otherwise, show usage instructions
     else:
-        bot.reply_to(message,
-                     "Usage:\n1) Send `/extract <paste cookie dump here>`\nOR\n2) Reply to an uploaded .txt file with /extract.")
-
-# Fallback handler and helpful tips
-@bot.message_handler(func=lambda m: True)
-def fallback(message):
-    # Always instruct user to reply to a file
-    if message.document:
-        bot.reply_to(message, "You sent a file! Now reply to it with /chk or /extract to process it.")
-    else:
         bot.reply_to(
             message,
-            "⚠️ Please send a .txt file (each line a cookie string) and reply to it with /chk or /extract.\n\n"
-            "Checking cookies directly from text is disabled."
+            "Usage:\n1) Send `/extract <paste cookie dump here>`\nOR\n2) Reply to an uploaded .txt file with /extract."
         )
 
 @bot.callback_query_handler(func=lambda call: call.data in ["act_chk", "act_extract"])
